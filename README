@@ -34,3 +34,5 @@ go build -o build/ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
 ### 3. 关闭
 - 之后可以通过点击`Stop Clash`，来关闭Clash程序
 - 要退出程序直接点击`Quit`，同时也会自动关闭Clash程序
+
+> 在exe文件同目录下会生成clash.log，用于记录clash输出的日志
