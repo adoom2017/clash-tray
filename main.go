@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"clash-ui/log"
+	"clash-tray/log"
 	_ "embed"
 	"os/exec"
 	"runtime"

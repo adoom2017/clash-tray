@@ -1,4 +1,4 @@
-module clash-ui
+module clash-tray
 
 go 1.22.4
 
