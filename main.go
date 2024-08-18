@@ -11,14 +11,14 @@ import (
 	"github.com/getlantern/systray"
 )
 
-//go:embed clash.ico
+//go:embed app.ico
 var icon []byte
 
 var cmd *exec.Cmd = nil
 
 func init() {
 	logConfig := log.GetLogConfig()
-	logConfig.Filename = "clash.log"
+	logConfig.Filename = "mihomo.log"
 
 	log.SetLogConfig(logConfig)
 }
@@ -32,6 +32,7 @@ func onReady() {
 	systray.SetTitle("Clash Tray App")
 	systray.SetTooltip("Minimal Clash Windows To Windows Tray")
 
+	logShow := systray.AddMenuItem("Show Log", "Show log")
 	startClash := systray.AddMenuItem("Start Clash", "Start Clash as admin")
 	stopClash := systray.AddMenuItem("Stop Clash", "Stop Clash app")
 	stopClash.Hide()
@@ -49,6 +50,8 @@ func onReady() {
 				stopClashCmd()
 				stopClash.Hide()
 				startClash.Show()
+			case <-logShow.ClickedCh:
+				showLog()
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return
@@ -94,4 +97,9 @@ func stopClashCmd() {
 	}
 
 	cmd.Process.Kill()
+}
+
+func showLog() {
+	exec.Command("notepad.exe", "mihomo.log").Start()
+	log.Infoln("Show log command executed.")
 }

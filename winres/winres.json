@@ -1,0 +1,60 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0000": [
+        "icon.png"
+      ]
+    }
+  },
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {
+          "name": "",
+          "version": ""
+        },
+        "description": "Minimal Clash Windows To Windows Tray",
+        "minimum-os": "win10",
+        "execution-level": "administrator",
+        "ui-access": false,
+        "auto-elevate": false,
+        "dpi-awareness": "system",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": false,
+        "ultra-high-resolution-scrolling-aware": false,
+        "long-path-aware": false,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": false,
+        "use-common-controls-v6": false
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "1.0.0.0",
+          "product_version": "1.0.0.0"
+        },
+        "info": {
+          "0409": {
+            "Comments": "Minimal Clash Windows To Windows Tray",
+            "CompanyName": "Adoom Private",
+            "FileDescription": "Minimal Clash Windows To Windows Tray",
+            "FileVersion": "1.0.0.0",
+            "InternalName": "",
+            "LegalCopyright": "Copyright © 2025 Adoom Private",
+            "LegalTrademarks": "",
+            "OriginalFilename": "ClashTray.exe",
+            "PrivateBuild": "",
+            "ProductName": "Clash Tray",
+            "ProductVersion": "1.0.0.0",
+            "SpecialBuild": ""
+          }
+        }
+      }
+    }
+  }
+}
