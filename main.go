@@ -11,8 +11,11 @@ import (
 	"github.com/getlantern/systray"
 )
 
-//go:embed app.ico
-var icon []byte
+//go:embed app-disable.ico
+var iconDisable []byte
+
+//go:embed app-enable.ico
+var iconEnable []byte
 
 var cmd *exec.Cmd = nil
 
@@ -28,7 +31,7 @@ func main() {
 }
 
 func onReady() {
-	systray.SetIcon(icon)
+	systray.SetIcon(iconDisable)
 	systray.SetTitle("Clash Tray App")
 	systray.SetTooltip("Minimal Clash Windows To Windows Tray")
 
@@ -46,10 +49,12 @@ func onReady() {
 				go startClashCmd()
 				startClash.Hide()
 				stopClash.Show()
+				systray.SetIcon(iconEnable)
 			case <-stopClash.ClickedCh:
 				stopClashCmd()
 				stopClash.Hide()
 				startClash.Show()
+				systray.SetIcon(iconDisable)
 			case <-logShow.ClickedCh:
 				showLog()
 			case <-mQuit.ClickedCh:

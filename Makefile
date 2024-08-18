@@ -1,12 +1,14 @@
-.PHONY: all build run gotool clean help
+.PHONY: all res build run gotool clean help
 
 BINARY="ClashTray.exe"
 
-all: gotool build
+all: gotool res build
 
 build:
-    rsrc -manifest app.manifest -o app.syso -ico clash.ico
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o build/${BINARY} -trimpath -ldflags "-H windowsgui -s -w"
+
+res:
+	go-winres make
 
 run:
 	@go run ./
@@ -24,3 +26,4 @@ help:
 	@echo "make run - 直接运行 Go 代码"
 	@echo "make clean - 移除二进制文件和 vim swap files"
 	@echo "make gotool - 运行 Go 工具 'fmt' and 'vet'"
+	@echo "make res - 生成资源文件"
