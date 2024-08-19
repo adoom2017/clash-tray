@@ -100,17 +100,23 @@ func (ct *clashTrayS) startClashCmd() {
 	stdout, err := ct.cmd.StdoutPipe()
 	if err != nil {
 		log.Errorln("Failed to create StdoutPipe for clash: %v", err)
+		MessageBox(err.Error(), "Failed to start clash", 0x00000010)
+		ct.cmd = nil
 		return
 	}
 
 	if err := ct.cmd.Start(); err != nil {
 		log.Errorln("Failed to start clash: %v", err)
+		MessageBox("启动失败: "+err.Error(), "Failed", 0x00000010)
+		ct.cmd = nil
 		return
 	}
 
 	ct.startClash.Hide()
 	ct.stopClash.Show()
 	systray.SetIcon(iconEnable)
+
+	MessageBox("启动成功", "Succeed", 0x00000000)
 
 	go func() {
 		scanner := bufio.NewScanner(stdout)
