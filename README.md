@@ -3,11 +3,16 @@
 > 习惯使用配置文件，一般的clash gui感觉太重了，觉得不好用
 
 ## 编译
-### 1. 生成资源文件
+### 1. 生成资源文件（可选）
 可以自定义exe文件的图标，需要icon类型，名字命名成clash.ico，放在main.go同目录下
 ```batch
-rsrc -manifest app.manifest -o app.syso -ico clash.ico
+go-winres make
 ```
+如果没有安装go-winres，通过下面的命令来进行安装
+```batch
+go install github.com/tc-hib/go-winres@latest
+```
+
 
 ### 2. 编译exe文件
 ```batch
