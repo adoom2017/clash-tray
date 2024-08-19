@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"os/exec"
 	"runtime"
+	"sync"
 	"syscall"
 
 	"github.com/getlantern/systray"
@@ -17,11 +18,26 @@ var iconDisable []byte
 //go:embed app-enable.ico
 var iconEnable []byte
 
-var cmd *exec.Cmd = nil
+const (
+	defaultLogFileName = "mihomo.log"
+	exeName            = "./mihomo.exe"
+	configDir          = "./config"
+)
+
+type clashTrayS struct {
+	cmd         *exec.Cmd
+	logShow     *systray.MenuItem
+	startClash  *systray.MenuItem
+	stopClash   *systray.MenuItem
+	quit        *systray.MenuItem
+	clashStatus sync.Mutex
+}
+
+var clashTray *clashTrayS = nil
 
 func init() {
 	logConfig := log.GetLogConfig()
-	logConfig.Filename = "mihomo.log"
+	logConfig.Filename = defaultLogFileName
 
 	log.SetLogConfig(logConfig)
 }
@@ -31,80 +47,111 @@ func main() {
 }
 
 func onReady() {
+	clashTray = &clashTrayS{}
+
+	clashTray.setupMenu()
+	go clashTray.handleEvents()
+}
+
+func (ct *clashTrayS) setupMenu() {
 	systray.SetIcon(iconDisable)
 	systray.SetTitle("Clash Tray App")
-	systray.SetTooltip("Minimal Clash Windows To Windows Tray")
+	systray.SetTooltip("Minimal clash command window to tray")
 
-	logShow := systray.AddMenuItem("Show Log", "Show log")
-	startClash := systray.AddMenuItem("Start Clash", "Start Clash as admin")
-	stopClash := systray.AddMenuItem("Stop Clash", "Stop Clash app")
-	stopClash.Hide()
+	ct.logShow = systray.AddMenuItem("Show Log", "Show logs")
+	ct.startClash = systray.AddMenuItem("Start Clash", "Start clash app")
+	ct.stopClash = systray.AddMenuItem("Stop Clash", "Stop clash app")
+	ct.stopClash.Hide()
 	systray.AddSeparator()
-	mQuit := systray.AddMenuItem("Quit", "Quit the app")
+	ct.quit = systray.AddMenuItem("Quit", "Quit the app")
+}
+
+func (ct *clashTrayS) handleEvents() {
+	for {
+		select {
+		case <-ct.startClash.ClickedCh:
+			ct.startClashCmd()
+		case <-ct.stopClash.ClickedCh:
+			ct.stopClashCmd()
+		case <-ct.logShow.ClickedCh:
+			showLog()
+		case <-ct.quit.ClickedCh:
+			ct.stopClashCmd()
+			systray.Quit()
+			return
+		}
+	}
+}
+
+func (ct *clashTrayS) startClashCmd() {
+	ct.clashStatus.Lock()
+	defer ct.clashStatus.Unlock()
+
+	if ct.cmd != nil {
+		return
+	}
+
+	ct.cmd = exec.Command(exeName, "-d", configDir)
+
+	if runtime.GOOS == "windows" {
+		ct.cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	}
+
+	stdout, err := ct.cmd.StdoutPipe()
+	if err != nil {
+		log.Errorln("Failed to create StdoutPipe for clash: %v", err)
+		return
+	}
+
+	if err := ct.cmd.Start(); err != nil {
+		log.Errorln("Failed to start clash: %v", err)
+		return
+	}
+
+	ct.startClash.Hide()
+	ct.stopClash.Show()
+	systray.SetIcon(iconEnable)
 
 	go func() {
-		for {
-			select {
-			case <-startClash.ClickedCh:
-				go startClashCmd()
-				startClash.Hide()
-				stopClash.Show()
-				systray.SetIcon(iconEnable)
-			case <-stopClash.ClickedCh:
-				stopClashCmd()
-				stopClash.Hide()
-				startClash.Show()
-				systray.SetIcon(iconDisable)
-			case <-logShow.ClickedCh:
-				showLog()
-			case <-mQuit.ClickedCh:
-				systray.Quit()
-				return
-			}
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			log.Infoln(scanner.Text())
+		}
+	}()
+
+	go func() {
+		err := ct.cmd.Wait()
+		ct.clashStatus.Lock()
+		defer ct.clashStatus.Unlock()
+		ct.cmd = nil
+		ct.startClash.Show()
+		ct.stopClash.Hide()
+		systray.SetIcon(iconDisable)
+		if err != nil {
+			log.Errorln("Clash exited with error: %v", err)
 		}
 	}()
 }
 
-func onExit() {
-	stopClashCmd()
-}
+func (ct *clashTrayS) stopClashCmd() {
+	ct.clashStatus.Lock()
+	defer ct.clashStatus.Unlock()
 
-func startClashCmd() {
-	cmd = exec.Command("./mihomo.exe", "-d", "./config")
-
-	if runtime.GOOS == "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	}
-
-	// 获取标准输出的管道
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Errorln("Falied to create StdoutPipe for clash: %v.", err)
+	if ct.cmd == nil || ct.cmd.Process == nil {
 		return
 	}
 
-	// 启动命令
-	if err := cmd.Start(); err != nil {
-		log.Errorln("Falied to start clash: %v.", err)
-		return
+	if err := ct.cmd.Process.Kill(); err != nil {
+		log.Errorln("Failed to stop clash: %v", err)
 	}
-
-	// 使用bufio.NewScanner读取输出
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		log.Infoln(scanner.Text()) // 打印每一行输出
-	}
-}
-
-func stopClashCmd() {
-	if cmd == nil {
-		return
-	}
-
-	cmd.Process.Kill()
 }
 
 func showLog() {
-	exec.Command("notepad.exe", "mihomo.log").Start()
-	log.Infoln("Show log command executed.")
+	if err := exec.Command("notepad.exe", defaultLogFileName).Start(); err != nil {
+		log.Errorln("Failed to open log file: %v", err)
+	}
+}
+
+func onExit() {
+	clashTray.cmd.Process.Kill()
 }
