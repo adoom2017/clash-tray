@@ -41,25 +41,27 @@ func GetLogConfig() LogConfig {
 }
 
 func SetLogConfig(config LogConfig) {
-	dir := filepath.Dir(config.Filename)
+	if config.Filename != "" {
+		dir := filepath.Dir(config.Filename)
 
-	// Create the log directory if it doesn't exist
-	_, err := os.Stat(dir)
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-			log.Errorf("Failed to create dir: %s, err: %v", dir, err)
-			return
+		// Create the log directory if it doesn't exist
+		_, err := os.Stat(dir)
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+				log.Errorf("Failed to create dir: %s, err: %v", dir, err)
+				return
+			}
 		}
-	}
 
-	// Set the log output info
-	log.SetOutput(&lumberjack.Logger{
-		Filename:   config.Filename,
-		MaxSize:    config.MaxSize,
-		MaxAge:     config.MaxAge,
-		MaxBackups: config.MaxBackups,
-		Compress:   config.Compress,
-	})
+		// Set the log output info
+		log.SetOutput(&lumberjack.Logger{
+			Filename:   config.Filename,
+			MaxSize:    config.MaxSize,
+			MaxAge:     config.MaxAge,
+			MaxBackups: config.MaxBackups,
+			Compress:   config.Compress,
+		})
+	}
 
 	logConfig = config
 }
