@@ -47,10 +47,10 @@ func main() {
 }
 
 func onReady() {
-	clashTray = &clashTrayS{}
+    clashTray = &clashTrayS{}
 
-	clashTray.setupMenu()
-	go clashTray.handleEvents()
+    clashTray.setupMenu()
+    go clashTray.handleEvents()
 }
 
 func (ct *clashTrayS) setupMenu() {
@@ -64,6 +64,24 @@ func (ct *clashTrayS) setupMenu() {
 	ct.stopClash.Hide()
 	systray.AddSeparator()
 	ct.quit = systray.AddMenuItem("Quit", "Quit the app")
+
+	// 添加开机自启动菜单
+	autoStartItem := systray.AddMenuItemCheckbox("开机自启动", "设置开机自动启动", isAutoStartEnabled())
+
+	// 处理自启动菜单点击事件
+	go func() {
+		for {
+			<-autoStartItem.ClickedCh
+			enabled := toggleAutoStart()
+			if enabled {
+				autoStartItem.Check()
+				log.Infoln("已启用开机自启动")
+			} else {
+				autoStartItem.Uncheck()
+				log.Infoln("已禁用开机自启动")
+			}
+		}
+	}()
 }
 
 func (ct *clashTrayS) handleEvents() {
