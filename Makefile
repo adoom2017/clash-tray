@@ -5,7 +5,13 @@ BINARY="ClashTray.exe"
 all: gotool res build
 
 build:
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o build/${BINARY} -trimpath -ldflags "-H windowsgui -s -w"
+ifeq ($(OS),Windows_NT)
+	@if not exist build mkdir build
+	set CGO_ENABLED=0& set GOOS=windows& set GOARCH=amd64& go build -o build\ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
+else
+	@mkdir -p build
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o build/ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
+endif
 
 res:
 	go-winres make
@@ -18,7 +24,11 @@ gotool:
 	go vet ./
 
 clean:
-	rm -rf ./build
+ifeq ($(OS),Windows_NT)
+	@if exist build rmdir /s /q build
+else
+	@rm -rf build
+endif
 
 help:
 	@echo "make - 格式化 Go 代码, 并编译生成二进制文件"

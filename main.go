@@ -25,12 +25,20 @@ const (
 )
 
 type clashTrayS struct {
-	cmd         *exec.Cmd
-	logShow     *systray.MenuItem
-	startClash  *systray.MenuItem
-	stopClash   *systray.MenuItem
+	cmd        *exec.Cmd
+	logShow    *systray.MenuItem
+	startClash *systray.MenuItem
+	stopClash  *systray.MenuItem
+
+	// 新增: 更新Mihomo菜单项
+	updateMihomo  *systray.MenuItem
+	autoStartItem *systray.MenuItem
+
 	quit        *systray.MenuItem
 	clashStatus sync.Mutex
+
+	// 更新状态标志
+	isUpdating bool
 }
 
 var clashTray *clashTrayS = nil
@@ -47,10 +55,10 @@ func main() {
 }
 
 func onReady() {
-    clashTray = &clashTrayS{}
+	clashTray = &clashTrayS{}
 
-    clashTray.setupMenu()
-    go clashTray.handleEvents()
+	clashTray.setupMenu()
+	go clashTray.handleEvents()
 }
 
 func (ct *clashTrayS) setupMenu() {
@@ -58,30 +66,20 @@ func (ct *clashTrayS) setupMenu() {
 	systray.SetTitle("Clash Tray App")
 	systray.SetTooltip("Minimal clash command window to tray")
 
-	ct.logShow = systray.AddMenuItem("Show Log", "Show logs")
-	ct.startClash = systray.AddMenuItem("Start Clash", "Start clash app")
-	ct.stopClash = systray.AddMenuItem("Stop Clash", "Stop clash app")
+	ct.logShow = systray.AddMenuItem("显示日志", "Show logs")
+	ct.startClash = systray.AddMenuItem("启动 Clash", "Start clash app")
+	ct.stopClash = systray.AddMenuItem("停止 Clash", "Stop clash app")
 	ct.stopClash.Hide()
 	systray.AddSeparator()
-	ct.quit = systray.AddMenuItem("Quit", "Quit the app")
+
+	// 新增: 更新Mihomo菜单项
+	ct.updateMihomo = systray.AddMenuItem("更新Mihomo", "从GitHub下载最新版本的Mihomo")
 
 	// 添加开机自启动菜单
-	autoStartItem := systray.AddMenuItemCheckbox("开机自启动", "设置开机自动启动", isAutoStartEnabled())
+	ct.autoStartItem = systray.AddMenuItemCheckbox("开机自启动", "设置开机自动启动", isAutoStartEnabled())
 
-	// 处理自启动菜单点击事件
-	go func() {
-		for {
-			<-autoStartItem.ClickedCh
-			enabled := toggleAutoStart()
-			if enabled {
-				autoStartItem.Check()
-				log.Infoln("已启用开机自启动")
-			} else {
-				autoStartItem.Uncheck()
-				log.Infoln("已禁用开机自启动")
-			}
-		}
-	}()
+	systray.AddSeparator()
+	ct.quit = systray.AddMenuItem("退出", "Quit the app")
 }
 
 func (ct *clashTrayS) handleEvents() {
@@ -93,12 +91,75 @@ func (ct *clashTrayS) handleEvents() {
 			ct.stopClashCmd()
 		case <-ct.logShow.ClickedCh:
 			showLog()
+		case <-ct.updateMihomo.ClickedCh:
+			ct.handleUpdateMihomo()
+		case <-ct.autoStartItem.ClickedCh:
+			enabled := toggleAutoStart()
+			if enabled {
+				ct.autoStartItem.Check()
+			} else {
+				ct.autoStartItem.Uncheck()
+			}
 		case <-ct.quit.ClickedCh:
 			ct.stopClashCmd()
 			systray.Quit()
 			return
 		}
 	}
+}
+
+// 处理更新Mihomo的逻辑
+func (ct *clashTrayS) handleUpdateMihomo() {
+
+	// 防止重复点击
+	if ct.isUpdating {
+		MessageBox("更新已在进行中，请稍候...", "提示", 0x00000040)
+		return
+	}
+
+	// 如果Clash正在运行，先提示用户
+	ct.clashStatus.Lock()
+	isRunning := ct.cmd != nil
+	ct.clashStatus.Unlock()
+
+	if isRunning {
+		result := MessageBox("更新需要先停止Mihomo服务，是否继续？", "确认", 0x00000004)
+		if result != 6 { // 6 = IDYES
+			return
+		}
+		// 停止Clash
+		ct.stopClashCmd()
+	}
+
+	// 更改菜单项状态
+	ct.isUpdating = true
+	ct.updateMihomo.SetTitle("正在更新...")
+	ct.updateMihomo.Disable()
+
+	// 在后台执行更新
+	go func() {
+		err := DownloadLatestMihomo()
+
+		// 恢复菜单项状态
+		ct.isUpdating = false
+		ct.updateMihomo.SetTitle("更新Mihomo")
+		ct.updateMihomo.Enable()
+
+		// 显示结果
+		if err != nil {
+			log.Errorln("更新失败: %v", err)
+			MessageBox("更新失败: "+err.Error(), "错误", 0x00000010)
+		} else {
+			MessageBox("Mihomo更新成功！", "成功", 0x00000040)
+			// 如果之前在运行，则重新启动
+			if isRunning {
+				result := MessageBox("是否立即启动Mihomo服务？", "确认", 0x00000004)
+				if result == 6 { // IDYES
+					ct.startClashCmd()
+				}
+			}
+		}
+	}()
 }
 
 func (ct *clashTrayS) startClashCmd() {
@@ -177,5 +238,7 @@ func showLog() {
 }
 
 func onExit() {
-	clashTray.cmd.Process.Kill()
+	if clashTray != nil && clashTray.cmd != nil && clashTray.cmd.Process != nil {
+		clashTray.cmd.Process.Kill()
+	}
 }
