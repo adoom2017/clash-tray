@@ -6,8 +6,8 @@ all: gotool res build
 
 build:
 ifeq ($(OS),Windows_NT)
-	@if not exist build mkdir build
-	set CGO_ENABLED=0& set GOOS=windows& set GOARCH=amd64& go build -o build\ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
+	@cmd /c if not exist build mkdir build
+	set CGO_ENABLED=0& set GOOS=windows& set GOARCH=amd64& go build -o build/ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
 else
 	@mkdir -p build
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o build/ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
@@ -20,8 +20,8 @@ run:
 	@go run ./
 
 gotool:
-	go fmt ./
-	go vet ./
+	go fmt ./...
+	go vet ./...
 
 clean:
 ifeq ($(OS),Windows_NT)
