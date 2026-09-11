@@ -30,39 +30,10 @@ fn message(text: &str, error: bool) {
     }
 }
 fn icon(bytes: &[u8]) -> Result<Icon> {
-    // The original ICO contains RGB PNG entries; image's ICO decoder requires RGBA.
-    // Decode embedded PNGs directly so RGB entries are converted correctly.
-    let mut png = None;
-    if bytes.get(..4) == Some(&[0, 0, 1, 0]) && bytes.len() >= 6 {
-        let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
-        for i in 0..count {
-            let Some(entry) = bytes.get(6 + i * 16..6 + (i + 1) * 16) else {
-                break;
-            };
-            let size = u32::from_le_bytes(entry[8..12].try_into()?) as usize;
-            let offset = u32::from_le_bytes(entry[12..16].try_into()?) as usize;
-            if let Some(data) = offset
-                .checked_add(size)
-                .and_then(|end| bytes.get(offset..end))
-                && data.starts_with(b"\x89PNG\r\n\x1a\n")
-            {
-                png = Some(image::load_from_memory_with_format(
-                    data,
-                    image::ImageFormat::Png,
-                )?);
-                break;
-            }
-        }
-    }
-    let image = match png {
-        Some(image) => image,
-        None => image::load_from_memory_with_format(bytes, image::ImageFormat::Ico)?,
-    }
-    .into_rgba8();
+    let image = image::load_from_memory_with_format(bytes, image::ImageFormat::Ico)?.into_rgba8();
     let (w, h) = image.dimensions();
     Ok(Icon::from_rgba(image.into_raw(), w, h)?)
 }
-
 fn main() {
     if let Err(error) = run() {
         message(&format!("{error:#}"), true);
@@ -104,9 +75,22 @@ fn run() -> Result<()> {
         .with_icon(disabled.clone())
         .build()?;
     let mut core = Core::default();
+    if let Err(error) = core.start(&base, &log) {
+        log.write(format!("自动启动 Mihomo 失败: {error:#}\n").as_bytes());
+        message(
+            &format!("自动启动 Mihomo 失败: {error:#}\n请检查内核和配置，可通过托盘菜单重新启动。"),
+            true,
+        );
+    }
+    let running = core.running();
+    start.set_enabled(!running);
+    stop.set_enabled(running);
+    if running {
+        tray.set_icon(Some(enabled.clone()))?;
+    }
     let (tx, rx) = mpsc::channel();
     let mut updating = false;
-    let mut displayed_running = false;
+    let mut displayed_running = running;
     loop {
         // Pump the Win32 queue on the same thread that owns the tray and menus.
         unsafe {
@@ -205,7 +189,21 @@ fn run() -> Result<()> {
 mod tests {
     #[test]
     fn embedded_icons_decode() {
-        super::icon(include_bytes!("../app-disable.ico")).unwrap();
-        super::icon(include_bytes!("../app-enable.ico")).unwrap();
+        for bytes in [
+            include_bytes!("../app-disable.ico").as_slice(),
+            include_bytes!("../app-enable.ico").as_slice(),
+        ] {
+            super::icon(bytes).unwrap();
+            assert_eq!(u16::from_le_bytes([bytes[4], bytes[5]]), 9);
+            let decoded = image::load_from_memory_with_format(bytes, image::ImageFormat::Ico)
+                .unwrap()
+                .into_rgba8();
+            assert_eq!(decoded.dimensions(), (256, 256));
+            assert_eq!(
+                decoded.get_pixel(0, 0)[3],
+                0,
+                "Icon corners must be transparent"
+            );
+        }
     }
 }

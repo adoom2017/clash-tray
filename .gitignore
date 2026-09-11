@@ -1,6 +1,7 @@
 *.drawio
 *.bkp
 /target/
+/dist/
 /mihomo.exe
 /mihomo.exe.bak
 /mihomo.log*
