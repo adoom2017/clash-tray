@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/getlantern/systray"
 )
@@ -117,28 +118,44 @@ func (ct *clashTrayS) handleUpdateMihomo() {
 		return
 	}
 
-	// 如果Clash正在运行，先提示用户
+	// 检查Clash是否正在运行
 	ct.clashStatus.Lock()
 	isRunning := ct.cmd != nil
 	ct.clashStatus.Unlock()
 
-	if isRunning {
-		result := MessageBox("更新需要先停止Mihomo服务，是否继续？", "确认", 0x00000004)
-		if result != 6 { // 6 = IDYES
-			return
-		}
-		// 停止Clash
-		ct.stopClashCmd()
-	}
-
 	// 更改菜单项状态
 	ct.isUpdating = true
-	ct.updateMihomo.SetTitle("正在更新...")
+	ct.updateMihomo.SetTitle("正在下载更新...")
 	ct.updateMihomo.Disable()
 
 	// 在后台执行更新
 	go func() {
-		err := DownloadLatestMihomo()
+		// 第一步：下载更新包到临时文件
+		zipPath, err := DownloadLatestMihomoToTemp()
+
+		if err != nil {
+			// 下载失败，恢复菜单状态
+			ct.isUpdating = false
+			ct.updateMihomo.SetTitle("更新Mihomo")
+			ct.updateMihomo.Enable()
+
+			log.Errorln("下载更新失败: %v", err)
+			MessageBox("下载更新失败: "+err.Error(), "错误", 0x00000010)
+			return
+		}
+
+		// 第二步：如果程序正在运行，停止程序
+		if isRunning {
+			ct.updateMihomo.SetTitle("正在停止服务...")
+			log.Infoln("停止Mihomo服务以进行更新...")
+			ct.stopClashCmd()
+			// 等待程序完全停止
+			time.Sleep(1 * time.Second)
+		}
+
+		// 第三步：应用更新（解压并替换）
+		ct.updateMihomo.SetTitle("正在应用更新...")
+		err = ApplyUpdate(zipPath)
 
 		// 恢复菜单项状态
 		ct.isUpdating = false
@@ -147,16 +164,24 @@ func (ct *clashTrayS) handleUpdateMihomo() {
 
 		// 显示结果
 		if err != nil {
-			log.Errorln("更新失败: %v", err)
-			MessageBox("更新失败: "+err.Error(), "错误", 0x00000010)
-		} else {
-			MessageBox("Mihomo更新成功！", "成功", 0x00000040)
-			// 如果之前在运行，则重新启动
+			log.Errorln("应用更新失败: %v", err)
+			MessageBox("应用更新失败: "+err.Error(), "错误", 0x00000010)
+			// 如果之前在运行，询问是否重新启动旧版本
 			if isRunning {
-				result := MessageBox("是否立即启动Mihomo服务？", "确认", 0x00000004)
+				result := MessageBox("更新失败，是否重新启动服务？", "确认", 0x00000004)
 				if result == 6 { // IDYES
 					ct.startClashCmd()
 				}
+			}
+		} else {
+			log.Infoln("Mihomo更新成功！")
+			// 第四步：如果之前在运行，自动重新启动
+			if isRunning {
+				MessageBox("Mihomo更新成功！正在重新启动服务...", "成功", 0x00000040)
+				time.Sleep(500 * time.Millisecond)
+				ct.startClashCmd()
+			} else {
+				MessageBox("Mihomo更新成功！", "成功", 0x00000040)
 			}
 		}
 	}()

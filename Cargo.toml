@@ -1,0 +1,30 @@
+[package]
+name = "clash-tray"
+version = "2.0.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Minimal Windows tray controller for Mihomo"
+build = "build.rs"
+
+[[bin]]
+name = "ClashTray"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tempfile = "3"
+image = { version = "0.25", default-features = false, features = ["ico"] }
+tray-icon = "0.24"
+winreg = "0.55"
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

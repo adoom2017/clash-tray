@@ -1,43 +1,47 @@
-## 缘起
-由于一直习惯使用clash核心来进行翻墙，但是老是有一个黑漆漆的cmd窗口在任务栏上，让人看来非常不爽，所以这里简单使用go来实现了一个托盘程序，用来直接控制clash核心，这个只会在托盘中显示，而不会在任务栏中显示，让人看起来舒服一点。
-> 习惯使用配置文件，一般的clash gui感觉太重了，觉得不好用
+# Clash Tray · Rust
+
+轻量 Windows 托盘程序，管理外部 `mihomo.exe`，不包含代理内核或配置编辑器。
 
 ## 编译
-### 1. 生成资源文件（可选）
-可以自定义exe文件的图标，需要icon类型，名字命名成clash.ico，放在main.go同目录下
-```batch
-go-winres make
-```
-如果没有安装go-winres，通过下面的命令来进行安装
-```batch
-go install github.com/tc-hib/go-winres@latest
+
+需要 Windows 10/11、Rust stable（支持 edition 2024）、Visual Studio C++ Build Tools 和 Windows SDK。
+
+```powershell
+cargo build --release --locked
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
 ```
 
-
-### 2. 编译exe文件
-```batch
-go build -o build/ClashTray.exe -trimpath -ldflags "-H windowsgui -s -w"
-```
+产物为 `target/release/ClashTray.exe`。无需 Go 或 WebView。
 
 ## 使用
-### 1. 目录存放
-将编译后的exe文件放到mihomo.exe文件同目录下，目录结构如下
+
+将程序放到可写目录：
+
+```text
+ClashTray.exe
+mihomo.exe
+config/
+  config.yaml
 ```
-|--ClashTray.exe
-|--mihomo.exe
-|--config
-   |--config.yaml
-```
-> mihomo需要的其他数据文件也都是在config目录下
 
-### 2. 启动
-直接双击ClashTray.exe启动程序
-> 程序会请求管理员权限，用于tun接口的创建
+双击后右键托盘图标，可启动/停止 Clash、显示日志、更新 Mihomo、开机自启动和退出。启动托盘不会自动启动内核，与原版一致。没有内核时可通过更新菜单首次下载，配置需自行准备。
 
-可以看到系统托盘中已经有一个Clash图标了，点击该图标，选择`Start Clash`，来启动Clash
+配置与日志均相对程序目录。日志同时捕获 stdout/stderr，超过 10 MiB 轮转为 `mihomo.log.1`，保留一个备份。
 
-### 3. 关闭
-- 之后可以通过点击`Stop Clash`，来关闭Clash程序
-- 要退出程序直接点击`Quit`，同时也会自动关闭Clash程序
+默认普通用户权限，方便 HKCU Run 自启动。TUN 模式需要权限时，请右键“以管理员身份运行”。这与原 Go 版强制 UAC 提权不同，自启动不会自动提权。
 
-> 在exe文件同目录下会生成clash.log，用于记录clash输出的日志
+更新从 GitHub 官方 release 下载，按当前架构选择 ZIP，先完整解压再停止内核、备份并替换；替换失败恢复旧文件，之前运行的内核会重启。下载时禁用启停操作，可以退出。支持 x64 compatible、ARM64、x86 资源名，本地构建验证仅覆盖 x64。
+
+## 结构
+
+- `src/main.rs`：托盘和 Win32 消息循环，主线程集中管理状态。
+- `src/process.rs`：子进程和日志轮转。
+- `src/update.rs`：下载、解压和替换回滚。
+- `src/autostart.rs`：当前用户注册表自启动。
+- `legacy/go/`：迁移前 Go 源码，包含原有未提交修改。
+- `MIGRATION.md`：迁移分析和验证范围。
+
+托盘使用 [tray-icon](https://docs.rs/tray-icon/0.24.2/tray_icon/)，图标资源使用 [winresource](https://docs.rs/winresource/0.1.31/winresource/)。
+
+当前版本与 GitHub 最新版本相同时跳过下载。

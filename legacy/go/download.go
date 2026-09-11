@@ -226,8 +226,8 @@ func needUpdate(currentVersion, latestVersion string) (bool, string) {
 	return true, fmt.Sprintf("发现新版本: 当前版本 %s, 最新版本 %s", currentVersion, latestVersion)
 }
 
-// 下载Mihomo最新版本 - 主函数
-func DownloadLatestMihomo() error {
+// 下载Mihomo最新版本到临时文件 - 第一步：仅下载
+func DownloadLatestMihomoToTemp() (string, error) {
 	// 获取当前版本
 	currentVersion, err := getCurrentVersion()
 	if err != nil {
@@ -242,7 +242,7 @@ func DownloadLatestMihomo() error {
 	log.Infoln("正在获取Mihomo最新版本信息...")
 	release, err := getLatestReleaseInfo(client)
 	if err != nil {
-		return fmt.Errorf("获取最新版本信息失败: %w", err)
+		return "", fmt.Errorf("获取最新版本信息失败: %w", err)
 	}
 
 	log.Infoln("GitHub最新版本: " + release.TagName)
@@ -252,7 +252,7 @@ func DownloadLatestMihomo() error {
 		needToUpdate, message := needUpdate(currentVersion, release.TagName)
 		if !needToUpdate {
 			log.Infoln(message)
-			return errors.New(message)
+			return "", errors.New(message)
 		}
 		log.Infoln(message)
 	}
@@ -260,25 +260,31 @@ func DownloadLatestMihomo() error {
 	// 查找匹配当前系统的资源
 	assetURL, assetName, err := findMatchingAsset(release)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	log.Infoln("准备下载: " + assetName)
 
 	// 确保临时目录存在
 	if err := ensureTempDir(); err != nil {
-		return err
+		return "", err
 	}
 
 	// 下载文件
 	zipPath := filepath.Join(tempDir, assetName)
 	if err := downloadFile(assetURL, zipPath, client); err != nil {
-		return fmt.Errorf("下载失败: %w", err)
+		return "", fmt.Errorf("下载失败: %w", err)
 	}
 
-	log.Infoln("下载完成，开始解压...")
+	log.Infoln("下载完成: " + zipPath)
+	return zipPath, nil
+}
 
-	// 解压文件
+// 应用更新 - 第二步：解压并替换可执行文件
+func ApplyUpdate(zipPath string) error {
+	log.Infoln("开始应用更新，解压文件...")
+
+	// 解压文件并替换可执行文件
 	if err := extractExecutable(zipPath); err != nil {
 		return fmt.Errorf("解压失败: %w", err)
 	}
@@ -289,4 +295,16 @@ func DownloadLatestMihomo() error {
 	cleanupTempFiles()
 
 	return nil
+}
+
+// 下载Mihomo最新版本 - 主函数（保留用于兼容性）
+func DownloadLatestMihomo() error {
+	// 下载到临时文件
+	zipPath, err := DownloadLatestMihomoToTemp()
+	if err != nil {
+		return err
+	}
+
+	// 应用更新
+	return ApplyUpdate(zipPath)
 }
