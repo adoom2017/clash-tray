@@ -39,7 +39,7 @@ config/
 - `src/process.rs`：子进程和日志轮转。
 - `src/update.rs`：下载、解压和替换回滚。
 - `src/autostart.rs`：当前用户注册表自启动。
-- `legacy/go/`：迁移前 Go 源码，包含原有未提交修改。
+- `build.rs`：Windows EXE 图标资源编译。
 - `MIGRATION.md`：迁移分析和验证范围。
 
 托盘使用 [tray-icon](https://docs.rs/tray-icon/0.24.2/tray_icon/)，图标资源使用 [winresource](https://docs.rs/winresource/0.1.31/winresource/)。
