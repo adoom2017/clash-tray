@@ -50,12 +50,15 @@ fn run() -> Result<()> {
     let start = MenuItem::new("启动 Clash", true, None);
     let stop = MenuItem::new("停止 Clash", false, None);
     let update = MenuItem::new("更新 Mihomo", true, None);
-    let auto = CheckMenuItem::new(
-        "开机自启动",
-        true,
-        autostart::enabled().unwrap_or(false),
-        None,
-    );
+    let auto_enabled = match autostart::initialize() {
+        Ok(enabled) => enabled,
+        Err(error) => {
+            log.write(format!("读取或迁移自启动设置失败: {error:#}\n").as_bytes());
+            message(&format!("读取或迁移自启动设置失败: {error:#}"), true);
+            false
+        }
+    };
+    let auto = CheckMenuItem::new("开机自启动", true, auto_enabled, None);
     let quit = MenuItem::new("退出", true, None);
     menu.append_items(&[
         &show,
@@ -119,9 +122,19 @@ fn run() -> Result<()> {
             } else if event.id == *stop.id() && !updating {
                 core.stop()
             } else if event.id == *auto.id() {
-                let result = autostart::set(auto.is_checked());
-                auto.set_checked(autostart::enabled().unwrap_or(false));
-                result
+                match autostart::set(auto.is_checked()) {
+                    Ok(actual) => {
+                        auto.set_checked(actual);
+                        Ok(())
+                    }
+                    Err(error) => {
+                        match autostart::enabled() {
+                            Ok(actual) => auto.set_checked(actual),
+                            Err(_) => auto.set_enabled(false),
+                        }
+                        Err(error)
+                    }
+                }
             } else if event.id == *update.id() && !updating {
                 updating = true;
                 update.set_text("正在下载更新...");

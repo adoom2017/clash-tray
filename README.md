@@ -45,6 +45,7 @@ cargo run --locked
 ```powershell
 cargo fmt --check
 cargo check --locked
+# 请在管理员 PowerShell 中运行测试（测试 EXE 同样带提权清单）
 cargo test --locked
 cargo clippy --all-targets --locked -- -D warnings
 ```
@@ -89,9 +90,13 @@ Mihomo 所需的其他数据文件也放在 `config/` 中。程序始终以自�
 
 ### 自启动与权限
 
-勾选“开机自启动”后，程序会将自身路径写入当前用户的注册表 Run 项，在该用户登录时启动托盘。移动程序后，应在新位置重新设置自启动。
+勾选“开机自启动”后，程序会创建当前用户专属的 Windows 计划任务 `ClashTray-用户SID`。任务在该用户登录后延迟 10 秒，以最高权限在交互桌面启动托盘，随后自动启动 Mihomo；不保存用户密码。任务不限制运行时长，电池供电时也会运行。
 
-程序默认以普通用户权限运行。使用 TUN 模式且需要管理员权限时，请右键 EXE 选择“以管理员身份运行”。登录自启动同样会自动启动 Mihomo，但不会自动提权。代理监听端口、规则和 TUN 是否启用由 `config/config.yaml` 决定；托盘程序不修改 Windows 系统代理设置。
+EXE 内嵌 `requireAdministrator` 权限清单。双击启动时，Windows 会按系统 UAC 策略请求管理员权限；同意后启动托盘并自动启动 Mihomo，内核继承管理员权限以创建 TUN 接口。取消授权时程序不会启动；从已提权的环境启动通常不会再次弹出提示。
+
+取消勾选会删除计划任务并清理旧版 HKCU Run 的 ClashTray 项，不会停止当前代理。创建后会读取配置确认成功，菜单状态会校验任务是否启用、执行路径、登录触发器和管理员权限。移动程序后，请在新位置重新勾选以更新路径。检测到旧自启动项指向当前程序时，会先注册计划任务再清理旧项。此功能适用于当前登录的管理员账户；使用其他管理员凭据提权时，任务归属该管理员。任务在用户登录后启动，不是无人登录的后台服务。
+
+代理监听端口、规则和 TUN 是否启用由 `config/config.yaml` 决定；托盘程序不修改 Windows 系统代理设置。
 
 ## 项目结构
 
@@ -100,8 +105,10 @@ src/
 ├── main.rs         # 托盘菜单、Win32 消息循环和应用状态
 ├── process.rs      # 内核进程管理、输出捕获和日志轮转
 ├── update.rs       # 版本检查、下载解压、备份与恢复
-└── autostart.rs    # 当前用户自启动设置
+├── autostart.rs    # 计划任务调用和旧注册表项迁移
+└── autostart.ps1   # Task Scheduler COM 注册、校验和删除
 build.rs            # 编译 Windows EXE 图标资源
+app.manifest        # Windows 管理员权限清单
 Cargo.toml          # Rust 包配置与依赖
 Cargo.lock          # 锁定依赖版本
 app-enable.ico      # 内核运行状态图标
@@ -149,3 +156,6 @@ cargo run --locked --example prepare_icons -- assets/icons/stopped.png app-disab
 ## 许可证
 
 Apache-2.0，详见 LICENSE。
+
+
+自启动集成验证（管理员 PowerShell）：执行 `./scripts/test-autostart.ps1`，创建独立临时任务，检查注册、权限、状态和删除，最后清理测试任务；不会运行或设置正式代理自启动。
